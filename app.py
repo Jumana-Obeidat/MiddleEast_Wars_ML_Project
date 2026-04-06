@@ -1,9 +1,6 @@
-# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression, PoissonRegressor
@@ -14,64 +11,44 @@ from lightgbm import LGBMRegressor
 
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
-# ================== PAGE SETUP ==================
-st.set_page_config(page_title="Middle East Wars ML Project", layout="wide")
-st.title("Middle East Wars Fatalities Prediction (2015-2024)")
+# ================== PAGE ==================
+st.set_page_config(page_title="ML Project", layout="wide")
+
+# ================== STYLE ==================
+st.markdown("""
+<style>
+.main {background-color: #f5f7fa;}
+h1 {color: #1f77b4;}
+</style>
+""", unsafe_allow_html=True)
+
+# ================== HEADER ==================
+st.title("🌍 Middle East Wars Fatalities Prediction")
+st.markdown("### 🚀 Machine Learning Dashboard")
 
 # ================== SIDEBAR ==================
-st.sidebar.header("About the Project")
-
-st.sidebar.write("""
-**Problem:**
-Predicting the number of fatalities in Middle East conflict events.
-
-**Why this project?**
-To analyze conflict patterns and understand factors affecting casualties.
-
-**Dataset:**
-Real-world conflict data (2015–2024) including:
-- Actors
-- Locations
-- Event types
-- Fatalities
-
-**Challenges:**
-- Large dataset
-- Missing values
-- Many categorical features
-- Outliers
+st.sidebar.title("📌 Project Info")
+st.sidebar.info("""
+**Problem:** Predict fatalities in conflicts  
+**Type:** Regression  
+**Best Model:** LightGBM  
 """)
 
-# ================== FILE UPLOAD ==================
-uploaded_file = st.file_uploader("Upload CSV dataset", type="csv")
+# ================== FILE ==================
+uploaded_file = st.file_uploader("📂 Upload dataset", type="csv")
 
 if uploaded_file is not None:
 
     df = pd.read_csv(uploaded_file)
 
-    # ================== TABS ==================
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "Dataset & Info",
-        "Model Training",
-        "Feature Analysis",
-        "Insights"
-    ])
+    st.subheader("📊 Dataset Preview")
+    st.dataframe(df.head())
 
-    # ================== TAB 1 ==================
-    with tab1:
-        st.subheader("Dataset Preview")
-        st.dataframe(df.head())
-
-        st.subheader("Basic Info")
-        st.write(df.describe())
-        st.write("Missing values:")
-        st.write(df.isnull().sum())
-
-    # ================== PREPROCESSING ==================
+    # ================== PREPROCESS ==================
     df = df.sample(frac=0.3, random_state=42)
 
-    fill_null_col = ['actor2', 'inter2', 'admin1', 'admin2', 'admin3']
-    for col in fill_null_col:
+    fill_cols = ['actor2', 'inter2', 'admin1', 'admin2', 'admin3']
+    for col in fill_cols:
         if col in df.columns:
             df[col] = df[col].fillna('Unknown')
 
@@ -82,23 +59,29 @@ if uploaded_file is not None:
         df['day'] = df['event_date'].dt.day
         df.drop('event_date', axis=1, inplace=True)
 
-    # ================== MODEL ==================
-    if 'fatalities' in df.columns:
+    if 'fatalities' not in df.columns:
+        st.error("❌ No fatalities column found")
+        st.stop()
 
-        X = df.drop('fatalities', axis=1)
-        y = np.log1p(df['fatalities'])
+    X = df.drop('fatalities', axis=1)
+    y = np.log1p(df['fatalities'])
 
-        X_num = X.select_dtypes(include=['int64', 'float64']).fillna(0)
+    X_num = X.select_dtypes(include=['int64','float64']).fillna(0)
 
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X_num)
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X_num)
+
+    # ================== BUTTON ==================
+    if st.button("🚀 Train Models"):
+
+        st.success("Models are training...")
 
         models = {
             "Linear Regression": LinearRegression(),
-            "Decision Tree": DecisionTreeRegressor(max_depth=15, min_samples_leaf=7),
+            "Decision Tree": DecisionTreeRegressor(max_depth=15),
             "Random Forest": RandomForestRegressor(n_estimators=100),
             "Gradient Boosting": GradientBoostingRegressor(),
-            "XGBoost": XGBRegressor(n_estimators=200, max_depth=6),
+            "XGBoost": XGBRegressor(n_estimators=200),
             "LightGBM": LGBMRegressor(n_estimators=200),
             "Poisson": PoissonRegressor(max_iter=1000)
         }
@@ -117,65 +100,70 @@ if uploaded_file is not None:
 
         results_df = pd.DataFrame(results).T
 
-        # ================== TAB 2 ==================
-        with tab2:
-            st.subheader("Model Comparison")
-            st.dataframe(results_df)
+        # ================== DASHBOARD ==================
+        st.markdown("## 📊 Model Performance")
 
-            st.bar_chart(results_df["R2"])
+        best_model = results_df["R2"].idxmax()
+        worst_model = results_df["R2"].idxmin()
 
-            # BEST & WORST
-            best_model = results_df["R2"].idxmax()
-            worst_model = results_df["R2"].idxmin()
+        col1, col2, col3 = st.columns(3)
 
-            st.success(f"Best Model: {best_model}")
-            st.error(f"Worst Model: {worst_model}")
+        col1.metric("🏆 Best Model", best_model)
+        col2.metric("❌ Worst Model", worst_model)
+        col3.metric("📈 Best R²", round(results_df["R2"].max(), 3))
 
-            st.write(f"""
-**Why is {best_model} the best?**
-Because it captures complex patterns and relationships in the data better.
+        st.bar_chart(results_df["R2"])
 
-**Why is {worst_model} the worst?**
-It struggles with non-linear relationships or the data distribution.
+        # ================== EXPLANATION ==================
+        st.markdown("## 🧠 Model Explanation")
+
+        st.info(f"""
+**Best Model: {best_model}**
+- Captures complex relationships  
+- Works well with large datasets  
+
+**Worst Model: {worst_model}**
+- Assumes simple patterns  
+- Not suitable for complex data  
 """)
 
-        # ================== TAB 3 ==================
-        with tab3:
+        # ================== FEATURE IMPORTANCE ==================
+        st.markdown("## 🔍 Feature Importance")
 
-            st.subheader("Feature Importance (Random Forest)")
+        rf = models["Random Forest"]
+        importances = pd.Series(rf.feature_importances_, index=X_num.columns)
 
-            rf_model = models["Random Forest"]
-            importances = pd.Series(rf_model.feature_importances_, index=X_num.columns)
+        st.bar_chart(importances.sort_values(ascending=False).head(10))
 
-            st.bar_chart(importances.sort_values(ascending=False).head(15))
+        # ================== INSIGHTS ==================
+        st.markdown("## 📌 Insights")
 
-            st.subheader("Correlation Heatmap")
+        if 'country' in df.columns:
+            top_country = df.groupby('country')['fatalities'].sum().idxmax()
+            st.success(f"🔥 Most dangerous country: {top_country}")
 
-            df_corr = pd.concat([X_num, y.rename('fatalities')], axis=1)
-            corr = df_corr.corr()
+        if 'year' in df.columns:
+            top_year = df.groupby('year')['fatalities'].sum().idxmax()
+            st.success(f"📅 Most dangerous year: {top_year}")
 
-            fig, ax = plt.subplots(figsize=(10, 8))
-            sns.heatmap(corr, cmap="coolwarm", ax=ax)
-            st.pyplot(fig)
+        # ================== PREDICTION ==================
+        st.markdown("## 🎯 Make Prediction")
 
-        # ================== TAB 4 ==================
-        with tab4:
+        user_input = []
 
-            st.subheader("Trend Analysis (Fatalities over Years)")
+        for col in X_num.columns[:5]:
+            val = st.number_input(f"{col}", value=float(X_num[col].mean()))
+            user_input.append(val)
 
-            if 'year' in df.columns:
-                yearly = df.groupby('year')['fatalities'].sum()
+        if st.button("Predict"):
 
-                st.line_chart(yearly)
+            model = models[best_model]
 
-            st.subheader("Top 10 Countries by Fatalities")
+            input_full = user_input + [0]*(X_scaled.shape[1]-len(user_input))
 
-            if 'country' in df.columns:
-                top_countries = df.groupby('country')['fatalities'].sum().sort_values(ascending=False).head(10)
-                st.bar_chart(top_countries)
+            pred = model.predict([input_full])
 
-    else:
-        st.warning("Column 'fatalities' not found!")
+            st.success(f"💀 Predicted Fatalities: {int(np.expm1(pred[0]))}")
 
 else:
-    st.info("Please upload a CSV dataset to start")
+    st.warning("⚠️ Please upload dataset to start")
